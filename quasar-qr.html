@@ -15,7 +15,7 @@
 </head>
 <body>
   <h1>QR-LK code generator</h1>
-  <p>Builds the binary QR-LK payload locally. The QR code is generated without external libraries.</p>
+  <p>Builds the binary QR-LK payload locally, then renders it with a standard QR implementation.</p>
   <form id="form">
     <p><label for="ssid">SSID</label><input id="ssid" required></p>
     <p><label for="password">Password</label><input id="password" required></p>
@@ -26,6 +26,7 @@
   <canvas id="qr" aria-label="Generated QR code"></canvas>
   <p><a id="download" hidden download="quasar-qr-lk.png">Download PNG</a></p>
   <pre id="details"></pre>
+  <script src="qrcode-generator.js"></script>
   <script src="quasar-qr.js"></script>
   <script>
     const form = document.getElementById('form');
@@ -38,12 +39,26 @@
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       try {
-        const result = QuasarQr.encode({
+        const payload = QuasarQr.makePayload({
           ssid: document.getElementById('ssid').value,
           password: document.getElementById('password').value,
           xTokenCode: document.getElementById('token').value,
         });
-        QuasarQr.renderCanvas(canvas, result.matrix, 10);
+        const qr = qrcode(0, 'M');
+        qr.addData(QuasarQr.toBinaryString(payload), 'Byte');
+        qr.make();
+        canvas.width = canvas.height = 420;
+        const context = canvas.getContext('2d');
+        const moduleCount = qr.getModuleCount();
+        const cell = 420 / (moduleCount + 8);
+        context.fillStyle = '#fff';
+        context.fillRect(0, 0, 420, 420);
+        context.fillStyle = '#000';
+        for (let row = 0; row < moduleCount; row++) {
+          for (let column = 0; column < moduleCount; column++) {
+            if (qr.isDark(row, column)) context.fillRect((column + 4) * cell, (row + 4) * cell, cell, cell);
+          }
+        }
         if (url) URL.revokeObjectURL(url);
         canvas.toBlob((blob) => {
           if (!blob) return;
@@ -53,10 +68,10 @@
         }, 'image/png');
         status.textContent = 'Generated locally. Scan the QR code from the display.';
         details.textContent = JSON.stringify({
-          payloadBytes: Array.from(result.payload),
-          payloadHex: Array.from(result.payload, (byte) => byte.toString(16).padStart(2, '0')).join(' '),
-          crc16: result.crc.toString(16).padStart(4, '0'),
-          qrVersion: result.version,
+          payloadBytes: Array.from(payload),
+          payloadHex: Array.from(payload, (byte) => byte.toString(16).padStart(2, '0')).join(' '),
+          crc16: QuasarQr.crc16(payload.slice(0, -2)).toString(16).padStart(4, '0'),
+          qrModules: moduleCount,
         }, null, 2);
       } catch (error) {
         status.textContent = error.message;
