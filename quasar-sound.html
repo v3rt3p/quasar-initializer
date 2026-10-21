@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quasar sound generator</title>
+</head>
+<body>
+  <h1>Quasar sound generator</h1>
+  <p>All encoding happens locally in this browser.</p>
+
+  <form id="form">
+    <p><label>SSID<br><input id="ssid" name="ssid" required></label></p>
+    <p><label>Password<br><input id="password" name="password" type="password"></label></p>
+    <p><label>xTokenCode<br><input id="token" name="token" required></label></p>
+    <p><label>Wi-Fi type<br>
+      <select id="wifiType" name="wifiType">
+        <option value="wpa">WPA / WPA2</option>
+        <option value="wep">WEP</option>
+        <option value="open">Open</option>
+        <option value="none">Auth only / no network</option>
+      </select>
+    </label></p>
+    <p><label><input id="hidden" name="hidden" type="checkbox"> Hidden network</label></p>
+    <p><label>Volume (0–1)<br><input id="volume" name="volume" type="number" min="0.01" max="1" step="0.01" value="1"></label></p>
+    <p><label>Tone duration, seconds<br><input id="toneDuration" name="toneDuration" type="number" min="0.04" step="0.01" value="0.04"></label></p>
+    <p>Use the exact 0.04-second default for speaker compatibility. Changing it is for experiments only.</p>
+    <button type="submit">Generate WAV</button>
+    <button type="reset">Clear</button>
+  </form>
+
+  <p id="status" role="status"></p>
+  <p><audio id="audio" controls></audio></p>
+  <p><a id="download" hidden download="quasar-pairing-signal.wav">Download WAV</a></p>
+  <pre id="details"></pre>
+
+  <script src="quasar-sound.js"></script>
+  <script>
+    const form = document.getElementById('form');
+    const audio = document.getElementById('audio');
+    const download = document.getElementById('download');
+    const status = document.getElementById('status');
+    const details = document.getElementById('details');
+    let url;
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      try {
+        const result = QuasarSound.encode({
+          ssid: document.getElementById('ssid').value,
+          password: document.getElementById('password').value,
+          xTokenCode: document.getElementById('token').value,
+          wifiType: document.getElementById('wifiType').value,
+          hidden: document.getElementById('hidden').checked,
+          volume: Number(document.getElementById('volume').value),
+          toneDuration: Number(document.getElementById('toneDuration').value),
+        });
+        if (url) URL.revokeObjectURL(url);
+        url = URL.createObjectURL(result.wav);
+        audio.src = url;
+        download.href = url;
+        download.hidden = false;
+        status.textContent = 'Generated locally. Put the speaker close to the playback device and press play.';
+        details.textContent = JSON.stringify({
+          mode: result.mode,
+          tones: result.tones.length,
+          duration: `${result.duration.toFixed(2)} seconds`,
+          bytes: result.payload.length,
+          sampleRate: result.sampleRate,
+        }, null, 2);
+      } catch (error) {
+        status.textContent = error.message;
+        audio.removeAttribute('src');
+        download.hidden = true;
+        details.textContent = '';
+      }
+    });
+
+    form.addEventListener('reset', () => {
+      audio.removeAttribute('src');
+      download.hidden = true;
+      status.textContent = '';
+      details.textContent = '';
+      if (url) URL.revokeObjectURL(url);
+      url = null;
+    });
+  </script>
+</body>
+</html>
